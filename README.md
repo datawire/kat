@@ -1,4 +1,4 @@
 # kat
 Kubernetes Acceptance Testing tool
 
-Please see the tutorial to get started: [docs/tutorial.rst]
+Please see the tutorial(docs/tutorial.rst) to get started.
