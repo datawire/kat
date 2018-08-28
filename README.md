@@ -14,8 +14,8 @@ This tool streamlines the following process:
 
 We originally built these sort of tests in a unit-testing style
 framework where each test would proceed through this sequence on its
-own. This turns out to be very slow since steps 2 and three are highly
-synchronous/chatty.
+own. This turns out to be very slow since steps two and three are
+highly synchronous/chatty.
 
 This test framework runs these sorts of tests several orders of
 magnitude faster by a) applying the yaml for all tests in a single big
