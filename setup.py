@@ -32,7 +32,7 @@ setup(
     # cmdclass=versioneer.get_cmdclass(),
     version="0.1.0",
     packages=find_packages(exclude=["tests"]),
-    # include_package_data=True,
+    include_package_data=True,
     install_requires=requirements,
 
     data_files=data_files,
