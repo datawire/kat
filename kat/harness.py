@@ -186,8 +186,8 @@ class Node(ABC):
         else:
             return self.parent.depth + 1
 
-    def format(self, st):
-        return st.format(self=self)
+    def format(self, st, **kwargs):
+        return st.format(self=self, **kwargs)
 
     @functools.lru_cache()
     def matches(self, pattern):
@@ -323,6 +323,9 @@ def query(queries: Sequence[Query]) -> Sequence[Result]:
 
     return results
 
+# yuck
+DOCTEST = False
+
 class Runner:
 
     def __init__(self, *classes, scope=None):
@@ -364,7 +367,8 @@ class Runner:
 
     def setup(self, selected):
         if not self.done:
-            print()
+            if not DOCTEST:
+                print()
             expanded = set(selected)
             for e in list(expanded):
                 for a in e.ancestors:
@@ -429,14 +433,14 @@ class Runner:
         else:
             prev_yaml = None
 
-        if yaml.strip() and yaml != prev_yaml:
-            print("Manifests changed, applying:")
+        if yaml.strip() and (yaml != prev_yaml or DOCTEST):
+            print("Manifests changed, applying.")
             with open(fname, "w") as f:
                 f.write(yaml)
             # XXX: better prune selector label
             run("kubectl apply --prune -l scope=%s -f %s" % (self.scope, fname))
             self._wait()
-        else:
+        elif yaml.strip():
             print("Manifests unchanged, skipping apply.")
 
     def _wait(self):
@@ -472,7 +476,7 @@ class Runner:
                     time.sleep(10)
                     break
             else:
-                print(" satisfied.")
+                print("satisfied.")
                 return
 
         assert False, "requirements not satisfied within 5 minutes"

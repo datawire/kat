@@ -144,19 +144,11 @@ Gotchas/Prerequisites
 
  - The harness (and thus the tutorial) expects you to be running
    `teleproxy` against the cluster. Telepresence should also work,
-   with two caveats:
-
-    1. I haven't tried it.
-    2. I don't think `telepresence` recognizes when services are
-       created after it has started running, so depending on your
-       workflow with the test harness you might need to manually
-       restart it a lot.
-
-   If the tele* requirement turns out to be too
-   brittle/environmentally sensitive, we can move the traffic driver
-   into the cluster, but so far I have found it to be a very
-   convenient way to work since I can directly interact with both
-   ambassader and all the backend services it fronts.
+   with the caveat that I haven't tried it. If the tele* requirement
+   turns out to be too brittle/environmentally sensitive, we can move
+   the traffic driver into the cluster, but so far I have found it to
+   be a very convenient way to work since I can directly interact with
+   both ambassader and all the backend services it fronts.
 
    See the "How to use" section of
    https://github.com/datawire/teleproxy for installation
@@ -228,9 +220,11 @@ execution. These are all optional, but provided here for illustration:
 
 .. testsetup:: *
 
-   import pytest
+   import pytest, kat
    from typing import Optional, Sequence
    from kat.harness import abstract_test, sanitize, variant, variants, Test, Query, Result, Runner
+
+   kat.harness.DOCTEST = True
 
    def is_good(r): return True
 
@@ -326,6 +320,7 @@ kubernetes as part of our test:
   ...       value: hello-pod
   ... """
   >>> Runner(ManifestTest).run()
+  Manifests changed, applying.
   ManifestTest: PASSED
 
 Using the `format` method to make tests more generic
@@ -377,6 +372,7 @@ here:
   ...       value: {self.path.k8s}
   ... """)
   >>> Runner(FormattedManifestTest).run()
+  Manifests changed, applying.
   FormattedManifestTest: PASSED
 
 Note that test classes define both `name` and `path` fields that are
@@ -444,6 +440,7 @@ We can now define our manifest test much more concisely:
   ...         return self.format(manifests.BACKEND)
   ...
   >>> Runner(ConciseManifestTest).run()
+  Manifests changed, applying.
   ConciseManifestTest: PASSED
 
 There is one caveat with how we have used manifests so far. We need to
@@ -467,17 +464,17 @@ override this you can use the `expected` keyword argument:
   >>> class QueryTest(Test):
   ...
   ...     def queries(self):
-  ...         for i in range(100):
+  ...         for i in range(10):
   ...             yield Query("http://httpbin.org/get?count=%s" % i)
   ...         yield Query("http://httpbin.org/status/404", expected=404)
   ...
   ...     def check(self):
-  ...         for i, r in enumerate(self.results[:100]):
+  ...         for i, r in enumerate(self.results[:10]):
   ...             args = r.json["args"]
   ...             assert int(args["count"]) == i, args
   ...
   >>> Runner(QueryTest).run()
-  Querying 101 urls... done.
+  Querying 11 urls... done.
   QueryTest: PASSED
 
 Combining Manifests and Queries (using requirements)
@@ -507,6 +504,8 @@ run httpbin in our own cluster:
   ...         assert self.results[0].json["args"]["foo"] == "bar"
   ...
   >>> Runner(CombinedTest).run()
+  Manifests changed, applying.
+  Checking requirements... satisfied.
   Querying 1 urls... done.
   CombinedTest: PASSED
 
@@ -525,7 +524,7 @@ associated with the target node:
   >>> class Ambassador(Test):
   ...
   ...     def manifests(self):
-  ...         return self.format(manifests.AMBASSADOR)
+  ...         return self.format(manifests.AMBASSADOR, image="quay.io/datawire/ambassador:0.35.3")
   ...
   ...     def requirements(self):
   ...        yield ("pod", self.name.k8s)
@@ -539,6 +538,8 @@ associated with the target node:
   ... config: {}
   ... """
   >>> Runner(Ambassador).run()
+  Manifests changed, applying.
+  Checking requirements... satisfied.
   Ambassador: PASSED
 
 This isn't super interesting all by itself, but it gets more
@@ -593,7 +594,7 @@ within another test, e.g.:
   ...         yield variant(variants(Mapping))
   ...
   ...     def manifests(self):
-  ...         return self.format(manifests.AMBASSADOR)
+  ...         return self.format(manifests.AMBASSADOR, image="quay.io/datawire/ambassador:0.35.3")
   ...
   ...     def requirements(self):
   ...        yield ("pod", self.name.k8s)
@@ -635,6 +636,8 @@ so:
   ...         yield Query("http://%s/%s/" % (self.parent.name.k8s, self.name))
   ...
   >>> Runner(Composite).run()
+  Manifests changed, applying.
+  Checking requirements... satisfied.
   Querying 1 urls... done.
   Composite: PASSED
   Mapping: PASSED

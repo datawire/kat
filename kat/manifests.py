@@ -105,7 +105,7 @@ spec:
   serviceAccountName: {self.path.k8s}
   containers:
   - name: ambassador
-    image: quay.io/datawire/ambassador:0.35.3
+    image: {image}
     env:
     - name: AMBASSADOR_NAMESPACE
       valueFrom:
@@ -125,8 +125,6 @@ spec:
         port: 8877
       initialDelaySeconds: 30
       periodSeconds: 3
-  - name: statsd
-    image: quay.io/datawire/statsd:0.35.3
   restartPolicy: Always
 """
 
