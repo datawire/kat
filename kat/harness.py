@@ -173,6 +173,13 @@ class Node(ABC):
                 yield d
 
     @property
+    def ancestors(self):
+        yield self
+        if self.parent is not None:
+            for a in self.parent.ancestors:
+                yield a
+
+    @property
     def depth(self):
         if self.parent is None:
             return 0
@@ -329,9 +336,10 @@ class Runner:
         self.tb = None
 
         @pytest.mark.parametrize("t", self.tests, ids=self.ids)
-        def test(request, t):
+        def test(request, capsys, t):
             selected = set(item.callspec.getparam('t') for item in request.session.items if item.function == test)
-            self.setup(selected)
+            with capsys.disabled():
+                self.setup(selected)
             # XXX: should aggregate the result of url checks
             for r in t.results:
                 r.check()
@@ -356,9 +364,14 @@ class Runner:
 
     def setup(self, selected):
         if not self.done:
+            print()
+            expanded = set(selected)
+            for e in list(expanded):
+                for a in e.ancestors:
+                    expanded.add(a)
             try:
                 self._setup_k8s()
-                self._query(selected)
+                self._query(expanded)
             except:
                 _, self.exc, self.tb = sys.exc_info()
                 raise
@@ -417,11 +430,14 @@ class Runner:
             prev_yaml = None
 
         if yaml.strip() and yaml != prev_yaml:
+            print("Manifests changed, applying:")
             with open(fname, "w") as f:
                 f.write(yaml)
             # XXX: better prune selector label
             run("kubectl apply --prune -l scope=%s -f %s" % (self.scope, fname))
             self._wait()
+        else:
+            print("Manifests unchanged, skipping apply.")
 
     def _wait(self):
         requirements = [r for n in self.nodes for r in n.requirements()]
