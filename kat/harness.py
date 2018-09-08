@@ -375,6 +375,9 @@ class Runner:
                     expanded.add(a)
             try:
                 self._setup_k8s()
+                for t in self.tests:
+                    if t in expanded and getattr(t, "pre_query", None):
+                        t.pre_query()
                 self._query(expanded)
             except:
                 _, self.exc, self.tb = sys.exc_info()
