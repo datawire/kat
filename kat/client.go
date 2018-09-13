@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"syscall"
 	"time"
 )
 
@@ -29,7 +31,33 @@ func (s semaphore) Release() {
 	s <- true
 }
 
+func rlimit() {
+	var rLimit syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	if err != nil {
+		log.Println("Error getting rlimit:", err)
+	} else {
+		log.Println("Initial rlimit:", rLimit)
+	}
+
+	rLimit.Max = 999999
+	rLimit.Cur = 999999
+	err = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	if err != nil {
+		log.Println("Error setting rlimit:", err)
+	}
+
+	err = syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	if err != nil {
+		log.Println("Error getting rlimit:", err)
+	} else {
+		log.Println("Final rlimit", rLimit)
+	}
+}
+
 func main() {
+	rlimit()
+
 	var input, output string
 	flag.StringVar(&input, "input", "", "input filename")
 	flag.StringVar(&output, "output", "", "output filename")
@@ -62,7 +90,13 @@ func main() {
 	count := len(specs)
 	queries := make(chan bool)
 
-	sem := Semaphore(256)
+	limitStr := os.Getenv("KAT_QUERY_LIMIT")
+	if limitStr == "" {
+		limitStr = "25"
+	}
+	limit, err := strconv.Atoi(limitStr)
+
+	sem := Semaphore(limit)
 
 	for i := 0; i < count; i++ {
 		go func(idx int) {
