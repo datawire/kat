@@ -1,5 +1,6 @@
 
 from enum import Enum, auto
+from io import StringIO
 from typing import Any, Callable, Mapping, Sequence, Type
 from yaml import compose, compose_all, dump_all, MappingNode, SequenceNode, ScalarNode, Node, add_representer
 
@@ -15,6 +16,7 @@ class Tag(Enum):
     INT = compose("3").tag
     FLOAT = compose("3.14159265359").tag
     BOOL = compose("true").tag
+    NULL = compose("null").tag
 
 class View:
 
@@ -117,7 +119,8 @@ PYJECTIONS = {
     Tag.INT: lambda x: int(x),
     Tag.FLOAT: lambda x: float(x),
     Tag.STRING: lambda x: x,
-    Tag.BOOL: lambda x: x.lower() in ("y", "yes", "true", "on")
+    Tag.BOOL: lambda x: x.lower() in ("y", "yes", "true", "on"),
+    Tag.NULL: lambda x: None
 }
 
 class ScalarView(View):
@@ -163,8 +166,11 @@ def node(value: Any) -> Node:
     return COERCIONS[type(value)](value)
 
 def load(name: str, value: Any, *allowed: Tag) -> SequenceView:
+    if isinstance(value, str):
+        value = StringIO(value)
+        value.name = name
     result = view(SequenceNode(Tag.SEQUENCE.value, list(compose_all(value))), ViewMode.PYTHON)
-    for r in result:
+    for r in view(result, ViewMode.NODE):
         if r.tag not in allowed:
             raise ValueError("expecting %s, got %s" % (", ".join(t.name for t in allowed),
                                                        r.node.tag))
