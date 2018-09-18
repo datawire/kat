@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from itertools import chain, product
-from typing import Any, Iterable, Mapping, Optional, Sequence, Type
+from typing import Any, Iterable, Mapping, Optional, Sequence, Tuple, Type
 
 import base64, copy, fnmatch, functools, inspect, json, os, pprint, pytest, sys, time, traceback
 
@@ -38,8 +38,8 @@ def sanitize(obj):
         return "-".join("%s-%s" % (sanitize(k), sanitize(v)) for k, v in sorted(obj.items()))
     else:
         cls = obj.__class__
-        count = counters.get(cls, 0)
-        counters[cls] = count + 1
+        count = COUNTERS.get(cls, 0)
+        COUNTERS[cls] = count + 1
         if count == 0:
             return cls.__name__
         else:
@@ -61,7 +61,7 @@ def _fixup(var, cls, context):
     var.context = context
     return var
 
-def variants(cls, *args, **kwargs):
+def variants(cls, *args, **kwargs) -> Tuple[Any]:
     context = kwargs.pop("context", None)
     return tuple(_fixup(a, n, context) for n in get_nodes(cls) for a in n.variants(*args, **kwargs))
 
