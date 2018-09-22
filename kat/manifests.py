@@ -8,9 +8,14 @@ spec:
   selector:
     backend: {self.path.k8s}
   ports:
-  - protocol: TCP
+  - name: http
+    protocol: TCP
     port: 80
     targetPort: 8080
+  - name: https
+    protocol: TCP
+    port: 443
+    targetPort: 8443
 ---
 apiVersion: v1
 kind: Pod
@@ -21,7 +26,7 @@ metadata:
 spec:
   containers:
   - name: backend
-    image: quay.io/datawire/kat-backend:3
+    image: quay.io/datawire/kat-backend:5
     ports:
     - containerPort: 8080
     env:

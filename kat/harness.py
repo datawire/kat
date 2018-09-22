@@ -278,6 +278,15 @@ class BackendRequest:
         self.url = BackendURL(**req.get("url"))
         self.headers = req.get("headers", {})
         self.host = req.get("host", None)
+        self.tls = BackendTLS(req.get("tls", {}))
+
+class BackendTLS:
+
+    def __init__(self, tls):
+        self.enabled = tls["enabled"]
+        self.server_name = tls["server-name"]
+        self.version = tls["version"]
+        self.negotiated_protocol = tls["negotiated-protocol"]
 
 class BackendResponse:
 

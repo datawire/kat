@@ -38,6 +38,14 @@ func requestLogger(w http.ResponseWriter, r *http.Request) {
 	request["method"] = r.Method
 	request["headers"] = lower(r.Header)
 	request["host"] = r.Host
+	var tls = make(map[string]interface{})
+	request["tls"] = tls
+	tls["enabled"] = r.TLS != nil
+	if r.TLS != nil {
+		tls["version"] = r.TLS.Version
+		tls["negotiated-protocol"] = r.TLS.NegotiatedProtocol
+		tls["server-name"] = r.TLS.ServerName
+	}
 
 	// respond with the requested status
 	status := r.Header.Get("Requested-Status")
@@ -84,5 +92,14 @@ func requestLogger(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	http.HandleFunc("/", requestLogger)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	exited := make(chan bool)
+	go func() {
+		log.Fatal(http.ListenAndServe(":8080", nil))
+		close(exited)
+	}()
+	go func() {
+		log.Fatal(http.ListenAndServeTLS(":8443", "server.crt", "server.key", nil))
+		close(exited)
+	}()
+	<- exited
 }

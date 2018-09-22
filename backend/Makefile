@@ -1,5 +1,7 @@
-TAG=3
+TAG=5
 
-backend:
+build:
 	docker build . -t quay.io/datawire/kat-backend:${TAG}
+
+backend: build
 	docker push quay.io/datawire/kat-backend:${TAG}
