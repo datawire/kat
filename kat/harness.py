@@ -344,8 +344,6 @@ class Runner:
         self.tests = [n for n in self.nodes if isinstance(n, Test)]
         self.ids = [t.path for t in self.tests]
         self.done = False
-        self.exc = None
-        self.tb = None
 
         @pytest.mark.parametrize("t", self.tests, ids=self.ids)
         def test(request, capsys, t):
@@ -389,12 +387,10 @@ class Runner:
                         t.pre_query()
                 self._query(expanded)
             except:
-                _, self.exc, self.tb = sys.exc_info()
-                raise
+                traceback.print_exc()
+                pytest.exit("setup failed")
             finally:
                 self.done = True
-        if self.exc:
-            raise self.exc.with_traceback(self.tb)
 
     def _setup_k8s(self):
         manifests = OrderedDict()
