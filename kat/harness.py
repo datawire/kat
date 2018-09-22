@@ -284,9 +284,9 @@ class BackendTLS:
 
     def __init__(self, tls):
         self.enabled = tls["enabled"]
-        self.server_name = tls["server-name"]
-        self.version = tls["version"]
-        self.negotiated_protocol = tls["negotiated-protocol"]
+        self.server_name = tls.get("server-name")
+        self.version = tls.get("version")
+        self.negotiated_protocol = tls.get("negotiated-protocol")
 
 class BackendResponse:
 
