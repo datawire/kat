@@ -3,7 +3,7 @@ from collections import OrderedDict
 from itertools import chain, product
 from typing import Any, Iterable, Mapping, Optional, Sequence, Tuple, Type
 
-import base64, copy, fnmatch, functools, inspect, json, os, pprint, pytest, sys, time, traceback
+import base64, copy, fnmatch, functools, inspect, json, os, pprint, pytest, sys, time, threading, traceback
 
 from .parser import dump, load, Tag
 
@@ -56,76 +56,8 @@ def get_nodes(type):
         for ssc in get_nodes(sc):
             yield ssc
 
-def _fixup(var, cls, context):
-    var.cls = cls
-    var.context = context
-    return var
-
 def variants(cls, *args, **kwargs) -> Tuple[Any]:
-    context = kwargs.pop("context", None)
-    return tuple(_fixup(a, n, context) for n in get_nodes(cls) for a in n.variants(*args, **kwargs))
-
-def _instantiate(o):
-    if isinstance(o, variant):
-        return o.instantiate()
-    elif isinstance(o, tuple):
-        return tuple(_instantiate(i) for i in o)
-    elif isinstance(o, list):
-        return [_instantiate(i) for i in o]
-    elif isinstance(o, dict):
-        return {_instantiate(k): _instantiate(v) for k, v in o.items()}
-    else:
-        return o
-
-class variant:
-
-    def __init__(self, *args, **kwargs):
-        for a in args:
-            assert not hasattr(a, "__next__")
-        self.args = args
-        self.kwargs = kwargs
-        self.name = self.kwargs.pop("name", "")
-
-    def clone(self, name):
-        dict(self.kwargs)
-        result = variant(*self.args, name=name, **self.kwargs)
-        result.cls = self.cls
-        result.context = self.context
-        return result
-
-    def instantiate(self):
-        try:
-            result = self.cls(*_instantiate(self.args))
-        except TypeError as e:
-            raise Exception("error instantiating %s, args=%s, kwargs=%s" % (self.cls, self.args, self.kwargs)) from e
-
-        name = self.cls.__name__
-        if self.name:
-            name += "-" + result.format(self.name)
-        if self.context:
-            name += "-" + result.format(self.context)
-
-        result.name = Name(name)
-
-        names = {}
-        for c in result.children:
-            assert c.name not in names, (result, c, names[c.name], c.name)
-            names[c.name] = c
-
-        return result
-
-def _set_parent(c, parent):
-    if isinstance(c, Node):
-        assert c.parent is None, (c.parent, c)
-        c.parent = parent
-        parent.children.append(c)
-    elif isinstance(c, (tuple, list)):
-        for o in c:
-            _set_parent(o, parent)
-    elif isinstance(c, dict):
-        for k, v in c.items():
-            _set_parent(k, parent)
-            _set_parent(v, parent)
+    return tuple(a for n in get_nodes(cls) for a in n.variants(*args, **kwargs))
 
 class Name(str):
 
@@ -133,23 +65,78 @@ class Name(str):
     def k8s(self):
         return self.replace(".", "-").lower()
 
+class NodeLocal(threading.local):
+
+    def __init__(self):
+        self.current = None
+
+_local = NodeLocal()
+
+def _argprocess(o):
+    if isinstance(o, Node):
+        return o.clone()
+    elif isinstance(o, tuple):
+        return tuple(_argprocess(i) for i in o)
+    elif isinstance(o, list):
+        return [_argprocess(i) for i in o]
+    elif isinstance(o, dict):
+        return {_argprocess(k): _argprocess(v) for k, v in o.items()}
+    else:
+        return o
+
 class Node(ABC):
 
     parent: 'Test'
     children: Sequence['Test']
     name: str
 
-    def __new__(cls, *args, **kwargs):
-        result = ABC.__new__(cls)
-        result.parent = None
-        result.children = []
-        for a in args:
-            _set_parent(a, result)
-        return result
+    def __init__(self, *args, **kwargs):
+        name = kwargs.pop("name", None)
+        _clone = kwargs.pop("_clone", None)
+        if _clone:
+            args = _clone._args
+            kwargs = _clone._kwargs
+            if name:
+                name = "-".join((_clone.name, name))
+            else:
+                name = _clone.name
+            self._args = _clone._args
+            self._kwargs = _clone._kwargs
+        else:
+            self._args = args
+            self._kwargs = kwargs
+            if name:
+                name = "-".join((self.__class__.__name__, name))
+            else:
+                name = self.__class__.__name__
+
+        saved = _local.current
+        self.parent = _local.current
+        _local.current = self
+        self.children = []
+        if self.parent is not None:
+            self.parent.children.append(self)
+        try:
+            init = getattr(self, "init", lambda *a, **kw: None)
+            init(*_argprocess(args), **_argprocess(kwargs))
+        finally:
+            _local.current = saved
+
+        self.name = Name(self.format(name or self.__class__.__name__))
+
+        names = {}
+        for c in self.children:
+            assert c.name not in names, ("test %s of type %s has duplicate children: %s of type %s, %s" %
+                                         (self.name, self.__class__.__name__, c.name, c.__class__.__name__,
+                                          names[c.name].__class__.__name__))
+            names[c.name] = c
+
+    def clone(self, name=None):
+        return self.__class__(_clone=self, name=name)
 
     @classmethod
     def variants(cls):
-        yield variant()
+        yield cls()
 
     @property
     def path(self) -> str:
@@ -256,7 +243,7 @@ class Result:
             pytest.skip(self.query.skip)
         if self.query.xfail:
             pytest.xfail(self.query.xfail)
-        assert self.query.expected == self.status, (self.query.expected, self.status or self.error)
+        assert self.query.expected == self.status, "%s: expected %s, got %s" % (self.query.url, self.query.expected, self.status or self.error)
 
 class BackendURL:
 
@@ -339,7 +326,7 @@ class Runner:
 
     def __init__(self, *classes, scope=None):
         self.scope = scope or "-".join(c.__name__ for c in classes)
-        self.roots = tuple(v.instantiate() for c in classes for v in variants(c))
+        self.roots = tuple(v for c in classes for v in variants(c))
         self.nodes = [n for r in self.roots for n in r.traversal]
         self.tests = [n for n in self.nodes if isinstance(n, Test)]
         self.ids = [t.path for t in self.tests]
@@ -410,8 +397,10 @@ class Runner:
                 else:
                     target = cfg[0]
                     yaml = load(n.path, cfg[1], Tag.MAPPING)
-                    for obj in yaml:
-                        obj["ambassador_id"] = n.ambassador_id
+                    if n.ambassador_id != None:
+                        for obj in yaml:
+                            if "ambassador_id" not in obj:
+                                obj["ambassador_id"] = n.ambassador_id
                     configs[n].append((target, yaml))
 
         for tgt_cfgs in configs.values():
@@ -421,7 +410,17 @@ class Runner:
                         k8s_yaml = manifests[t]
                         for item in k8s_yaml:
                             if item["kind"].lower() == "service":
-                                item["metadata"]["annotations"] = { "getambassador.io/config": dump(cfg) }
+                                md = item["metadata"]
+                                if "annotations" not in md:
+                                    md["annotations"] = {}
+
+                                anns = md["annotations"]
+
+                                if "getambassador.io/config" in anns:
+                                    anns["getambassador.io/config"] += "\n" + dump(cfg)
+                                else:
+                                    anns["getambassador.io/config"] = dump(cfg)
+
                                 break
                         else:
                             continue

@@ -222,7 +222,7 @@ execution. These are all optional, but provided here for illustration:
 
    import pytest, kat
    from typing import Optional, Sequence
-   from kat.harness import abstract_test, sanitize, variant, variants, Test, Query, Result, Runner
+   from kat.harness import abstract_test, sanitize, variants, Test, Query, Result, Runner
 
    kat.harness.DOCTEST = True
 
@@ -231,6 +231,10 @@ execution. These are all optional, but provided here for illustration:
 .. doctest::
 
   >>> class ExampleTest(Test):
+  ...
+  ...     # perform test initialization, gets passed args from constructor
+  ...     def init(self, *args, **kwargs) -> None:
+  ...         pass
   ...
   ...     # return any kubernetes manifests needed for this test
   ...     def manifests(self) -> Optional[str]:
@@ -401,9 +405,14 @@ Just to eliminate even more boilerplate, the harness comes with a
     selector:
       backend: {self.path.k8s}
     ports:
-    - protocol: TCP
+    - name: http
+      protocol: TCP
       port: 80
       targetPort: 8080
+    - name: https
+      protocol: TCP
+      port: 443
+      targetPort: 8443
   ---
   apiVersion: v1
   kind: Pod
@@ -414,7 +423,7 @@ Just to eliminate even more boilerplate, the harness comes with a
   spec:
     containers:
     - name: backend
-      image: quay.io/datawire/kat-backend:3
+      image: quay.io/datawire/kat-backend:5
       ports:
       - containerPort: 8080
       env:
@@ -550,11 +559,9 @@ Parameterizing Tests
 --------------------
 
 If you want to instantiate a test multiple times, you can use the
-`variants` classmethod to control how tests are instantiated. A
-`variant` captures the arguments that will be supplied to the test
-case as well as other things like a name for that particular variation
-of the test. The `variants` class method can yield as many variants as
-it likes, and those will be used to instantiate the test cases:
+`variants` classmethod to control how tests are instantiated. The
+`variants` class method can yield as many variants as it likes of a
+given class:
 
 .. doctest::
 
@@ -563,9 +570,9 @@ it likes, and those will be used to instantiate the test cases:
   ...     @classmethod
   ...     def variants(cls):
   ...         for url in ("http://httpbin.org", "http://google.com"):
-  ...           yield variant(url, name=sanitize(url))
+  ...           yield cls(url, name=sanitize(url))
   ...
-  ...     def __init__(self, url):
+  ...     def init(self, url):
   ...         self.url = url
   ...
   ...     def queries(self):
@@ -591,7 +598,7 @@ within another test, e.g.:
   ...
   ...     @classmethod
   ...     def variants(cls):
-  ...         yield variant(variants(Mapping))
+  ...         yield cls(variants(Mapping))
   ...
   ...     def manifests(self):
   ...         return self.format(manifests.AMBASSADOR, image="quay.io/datawire/ambassador:0.35.3")
