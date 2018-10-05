@@ -213,13 +213,26 @@ class Test(Node):
 
 class Query:
 
-    def __init__(self, url, expected=200, skip = None, xfail = None):
+    def __init__(self, url, expected=200, method="GET", headers=None, skip = None, xfail = None):
+        self.method = method
         self.url = url
+        self.headers = headers
         self.expected = expected
         self.skip = skip
         self.xfail = xfail
         self.parent = None
         self.result = None
+
+    def as_json(self):
+        result = {
+            "test": self.parent.path, "id": id(self),
+            "url": self.url
+        }
+        if self.method:
+            result["method"] = self.method
+        if self.headers:
+            result["headers"] = self.headers
+        return result
 
 class Result:
 
@@ -302,7 +315,7 @@ def query(queries: Sequence[Query]) -> Sequence[Result]:
     byid = {}
 
     for q in queries:
-        jsonified.append({"test": q.parent.path, "id": id(q), "url": q.url})
+        jsonified.append(q.as_json())
         byid[id(q)] = q
 
     with open("/tmp/urls.json", "w") as f:

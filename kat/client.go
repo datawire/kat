@@ -101,35 +101,58 @@ func main() {
 	for i := 0; i < count; i++ {
 		go func(idx int) {
 			sem.Acquire()
+			defer func() {
+				queries <- true
+				sem.Release()
+			}()
+
 			query := specs[idx]
 			result := make(map[string]interface{})
 			query["result"] = result
+			imethod, ok := query["method"]
+			var method string
+			if ok {
+				method = imethod.(string)
+			} else {
+				method = "GET"
+			}
 			url := query["url"].(string)
-			resp, err := client.Get(url)
+			req, err := http.NewRequest(method, url, nil)
+			if err != nil {
+				log.Printf("%v: %v", url, err)
+				result["error"] = err.Error()
+			}
+
+			headers, ok := query["headers"]
+			if ok {
+				for key, val := range headers.(map[string]interface{}) {
+					req.Header.Add(key, val.(string))
+				}
+			}
+
+			resp, err := client.Do(req)
+			if err != nil {
+				log.Printf("%v: %v", url, err)
+				result["error"] = err.Error()
+			}
+
+			result["status"] = resp.StatusCode
+			result["headers"] = resp.Header
+			body, err := ioutil.ReadAll(resp.Body)
 			if err != nil {
 				log.Printf("%v: %v", url, err)
 				result["error"] = err.Error()
 			} else {
-				result["status"] = resp.StatusCode
-				result["headers"] = resp.Header
-				body, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					log.Printf("%v: %v", url, err)
-					result["error"] = err.Error()
+				log.Printf("%v: %v", url, resp.Status)
+				result["body"] = body
+				var jsonBody interface{}
+				err = json.Unmarshal(body, &jsonBody)
+				if err == nil {
+					result["json"] = jsonBody
 				} else {
-					log.Printf("%v: %v", url, resp.Status)
-					result["body"] = body
-					var jsonBody interface{}
-					err = json.Unmarshal(body, &jsonBody)
-					if err == nil {
-						result["json"] = jsonBody
-					} else {
-						result["text"] = string(body)
-					}
+					result["text"] = string(body)
 				}
 			}
-			queries <- true
-			sem.Release()
 		}(i)
 	}
 
