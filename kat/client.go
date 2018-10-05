@@ -121,6 +121,7 @@ func main() {
 			if err != nil {
 				log.Printf("%v: %v", url, err)
 				result["error"] = err.Error()
+				return
 			}
 
 			headers, ok := query["headers"]
@@ -134,6 +135,7 @@ func main() {
 			if err != nil {
 				log.Printf("%v: %v", url, err)
 				result["error"] = err.Error()
+				return
 			}
 
 			result["status"] = resp.StatusCode
