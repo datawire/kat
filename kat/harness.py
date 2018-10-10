@@ -213,10 +213,11 @@ class Test(Node):
 
 class Query:
 
-    def __init__(self, url, expected=200, method="GET", headers=None, skip = None, xfail = None):
+    def __init__(self, url, expected=200, method="GET", headers=None, insecure=False, skip = None, xfail = None):
         self.method = method
         self.url = url
         self.headers = headers
+        self.insecure = insecure
         self.expected = expected
         self.skip = skip
         self.xfail = xfail
@@ -226,7 +227,8 @@ class Query:
     def as_json(self):
         result = {
             "test": self.parent.path, "id": id(self),
-            "url": self.url
+            "url": self.url,
+            "insecure": self.insecure
         }
         if self.method:
             result["method"] = self.method

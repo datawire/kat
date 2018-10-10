@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -90,6 +91,19 @@ func main() {
 		},
 	}
 
+	insecure_tr := &http.Transport{
+		MaxIdleConns:       10,
+		IdleConnTimeout:    30 * time.Second,
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	insecure_client := &http.Client{
+		Transport: insecure_tr,
+		Timeout: time.Duration(10 * time.Second),
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
 	count := len(specs)
 	queries := make(chan bool)
 
@@ -134,7 +148,15 @@ func main() {
 				}
 			}
 
-			resp, err := client.Do(req)
+			insecure, ok := query["insecure"]
+			var cli *http.Client
+			if ok && insecure.(bool) {
+				cli = insecure_client
+			} else {
+				cli = client
+			}
+
+			resp, err := cli.Do(req)
 			if err != nil {
 				log.Printf("%v: %v", url, err)
 				result["error"] = err.Error()
