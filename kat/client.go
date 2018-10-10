@@ -85,6 +85,9 @@ func main() {
 	client := &http.Client{
 		Transport: tr,
 		Timeout: time.Duration(10 * time.Second),
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 
 	count := len(specs)
