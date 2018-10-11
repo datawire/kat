@@ -43,7 +43,14 @@ metadata:
 spec:
   type: NodePort
   ports:
-   - port: 80
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 80
+  - name: https
+    protocol: TCP
+    port: 443
+    targetPort: 443
   selector:
     service: {self.path.k8s}
 ---
