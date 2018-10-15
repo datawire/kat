@@ -260,6 +260,80 @@ class Result:
             pytest.xfail(self.query.xfail)
         assert self.query.expected == self.status, "%s: expected %s, got %s" % (self.query.url, self.query.expected, self.status or self.error)
 
+    def as_dict(self):
+        return {
+            'RENDERED': {
+                'client': {
+                    'request': self.query.as_json(),
+                    'response': {
+                        'status': self.status,
+                        'error': self.error,
+                        'headers': self.headers
+                    }
+                },
+                'upstream': {
+                    'name': self.backend.name,
+                    'request': {
+                        'headers': self.backend.request.headers,
+                        'url': {
+                            'fragment': self.backend.request.url.fragment,
+                            'host': self.backend.request.url.host,
+                            'opaque': self.backend.request.url.opaque,
+                            'path': self.backend.request.url.path,
+                            'query': self.backend.request.url.query,
+                            'rawQuery': self.backend.request.url.rawQuery,
+                            'scheme': self.backend.request.url.scheme,
+                            'username': self.backend.request.url.username,
+                            'password': self.backend.request.url.password,
+                        },
+                        'host': self.backend.request.host,
+                        'tls': {
+                            'enabled': self.backend.request.tls.enabled,
+                            'server_name': self.backend.request.tls.server_name,
+                            'version': self.backend.request.tls.version,
+                            'negotiated_protocol': self.backend.request.tls.negotiated_protocol,
+                        },
+                    },
+                    'response': {
+                        'headers': self.backend.response.headers
+                    }
+                }
+            },
+            'ACTUAL': {
+                'query': self.query.as_json(),
+                'status': self.status,
+                'error': self.error,
+                'headers': self.headers,
+                'backend': {
+                    'name': self.backend.name,
+                    'request': {
+                        'headers': self.backend.request.headers,
+                        'url': {
+                            'fragment': self.backend.request.url.fragment,
+                            'host': self.backend.request.url.host,
+                            'opaque': self.backend.request.url.opaque,
+                            'path': self.backend.request.url.path,
+                            'query': self.backend.request.url.query,
+                            'rawQuery': self.backend.request.url.rawQuery,
+                            'scheme': self.backend.request.url.scheme,
+                            'username': self.backend.request.url.username,
+                            'password': self.backend.request.url.password,
+                        },
+                        'host': self.backend.request.host,
+                        'tls': {
+                            'enabled': self.backend.request.tls.enabled,
+                            'server_name': self.backend.request.tls.server_name,
+                            'version': self.backend.request.tls.version,
+                            'negotiated_protocol': self.backend.request.tls.negotiated_protocol,
+                        }
+                    },
+                    'response': {
+                        'headers': self.backend.response.headers
+                    }
+                },
+            }
+        }
+
 class BackendURL:
 
     def __init__(self, fragment=None, host=None, opaque=None, path=None, query=None, rawQuery=None,
@@ -524,5 +598,9 @@ class Runner:
             for r in results:
                 t = r.parent
                 t.queried.append(r.query)
+
+                if getattr(t, "debug", False):
+                    print("%s result: %s" % (t.name, json.dumps(r.as_dict(), sort_keys=True, indent=4)))
+
                 t.results.append(r)
                 t.pending.remove(r.query)
