@@ -1,3 +1,10 @@
+# NOTHING TO SEE HERE, MOVE ALONG.
+
+The `kat` repo has been repatriated into https://github.com/datawire/ambassador,
+from whence it came. You'll find it mostly in the `kat` directory there.
+
+# NOTHING TO SEE HERE, MOVE ALONG.
+
 # kat
 Kubernetes Acceptance Testing tool
 
